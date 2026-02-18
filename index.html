@@ -23,7 +23,6 @@
             color: var(--text);
             background-color: #000; 
 
-            /* --- BACKGROUND LAYERS --- */
             background-image: url('laura.png'), url('radar.jpg');
             background-position: top center, center center;
             background-size: 280px auto, cover;
@@ -97,6 +96,8 @@
         .card-desc { color: #aaa; font-size: 0.85rem; line-height: 1.4; }
         .card-desc strong { color: #fff; }
         .critical .card-title { color: #ff4444; }
+        /* Style for time-less warning cards */
+        .no-time .time-badge { display: none; }
     </style>
 </head>
 <body>
@@ -154,91 +155,82 @@
         // ============================================
         // CYCLE 1: Today's Reset
         // ============================================
-        let c1_time = 0;
         let c1_proj = total + rate;
-        let c1_overflow = c1_proj > cap;
-        let c1_desc = "";
-
-        if (c1_overflow) {
+        if (c1_proj > cap) {
             let toClear = c1_proj - safeZone;
-            c1_desc = `⚠️ <strong>OVERFLOW RISK!</strong><br>
-            Incoming +${rate} will exceed cap.<br>
-            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
-            This drops you to the safe zone (${safeZone}).`;
-            total = safeZone; 
+            addCard(tl, null, null, null, "CAP ALERT!", 
+                `⚠️ <strong>OVERFLOW RISK!</strong><br>
+                Incoming +${rate} will exceed cap.<br>
+                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
+                This drops you to the safe zone (${safeZone}).`, true);
+            total = safeZone;
         } else {
             total = c1_proj;
-            c1_desc = `Start saving today! Tasks refill (+${rate}). Total: <strong>${total}</strong>.`;
         }
-        addCard(tl, resetH, resetM, c1_time, "Today's Reset", c1_desc, c1_overflow);
+        addCard(tl, resetH, resetM, 0, "Today's Reset", `Tasks refill (+${rate}). Current count: <strong>${total}</strong>.`);
 
         // ============================================
         // CYCLE 2: Mid-Day Refill (+8 hours)
         // ============================================
-        let c2_time = 8;
         let c2_proj = total + rate;
-        let c2_overflow = c2_proj > safeZone; 
-        let c2_desc = "";
-
-        if (c2_overflow) {
+        if (c2_proj > safeZone) {
             let toClear = c2_proj - safeZone;
-            c2_desc = `⚠️ <strong>PREPARE FOR FINAL STACK!</strong><br>
-            If you do nothing, you reach ${c2_proj}. This is too high.<br>
-            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
-            This ensures you land at <strong>${safeZone}</strong>, leaving exactly enough room for the final refill.`;
-            total = safeZone; 
+            addCard(tl, null, null, null, "CAP ALERT!", 
+                `⚠️ <strong>PREPARE FOR FINAL STACK!</strong><br>
+                If you do nothing, you reach ${c2_proj}. This is too high.<br>
+                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
+                This ensures you land at <strong>${safeZone}</strong>, leaving room for the final refill.`, true);
+            total = safeZone;
         } else {
             total = c2_proj;
-            c2_desc = `Second batch (+${rate}). Total: <strong>${total}</strong>. Do not claim (Red Dots).`;
         }
-        addCard(tl, resetH, resetM, c2_time, "Mid-Day Refill", c2_desc, c2_overflow);
+        addCard(tl, resetH, resetM, 8, "Mid-Day Refill", `Second refill (+${rate}). Current count: <strong>${total}</strong>.`);
 
         // ============================================
         // CYCLE 3: Last Refill (+16 hours)
         // ============================================
-        let c3_time = 16;
         let c3_proj = total + rate;
-        let c3_overflow = c3_proj > cap;
-        let c3_desc = "";
-
-        if (c3_overflow) {
+        if (c3_proj > cap) {
             let toClear = c3_proj - cap;
-            c3_desc = `⚠️ <strong>FINAL TOP-OFF!</strong><br>
-            Incoming +${rate} will overflow.<br>
-            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
-            You will hit <strong>${cap}/${cap}</strong> perfectly.`;
+            addCard(tl, null, null, null, "CAP ALERT!", 
+                `⚠️ <strong>FINAL TOP-OFF!</strong><br>
+                Incoming +${rate} will overflow.<br>
+                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
+                You will hit <strong>${cap}/${cap}</strong> perfectly.`, true);
             total = cap;
         } else {
             total = c3_proj;
-            c3_desc = `Last refill! You land perfectly at <strong>${total}/${cap}</strong>.`;
         }
-        addCard(tl, resetH, resetM, c3_time, "Last Refill (Stop Point)", c3_desc, c3_overflow);
+        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`);
 
         // ============================================
-        // LAURA SKILL (+16h 05m)
+        // LAURA SKILL (+19:04 local equivalent)
         // ============================================
         let lauraTotal = total + laura;
-        addCard(tl, resetH, resetM, c3_time + 0.083, "Activate Hero Skill", 
+        addCard(tl, resetH, resetM, 16.066, "Activate Hero Skill", 
             `Refill Complete! Use Laura NOW.<br>
-            Since you are full (${total}), this pushes you OVER the cap to <strong>${lauraTotal}</strong>.`, 
-            true);
+            This pushes you OVER the cap to <strong>${lauraTotal}</strong>.`, true);
 
         // ============================================
         // EVENT START (+24h)
         // ============================================
-        addCard(tl, resetH, resetM, 24, "EVENT START", 
-            `Tomorrow at reset! Unleash everything.`, 
-            false);
+        addCard(tl, resetH, resetM, 24, "EVENT START", `Tomorrow at reset! Unleash everything.`);
     }
 
-    function addCard(container, startH, startM, offsetHours, title, desc, critical) {
-        let totalMinutes = (startH * 60) + startM + (offsetHours * 60);
-        let d = new Date(); d.setHours(0,0,0,0); d.setMinutes(totalMinutes);
-        let timeString = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
+    function addCard(container, startH, startM, offsetHours, title, desc, critical = false) {
         let div = document.createElement('div');
         div.className = `event-card ${critical ? 'critical' : 'active'}`;
-        div.innerHTML = `<div class="time-badge">${timeString}</div><div class="card-title">${title}</div><div class="card-desc">${desc}</div>`;
+        
+        if (startH !== null) {
+            let totalMinutes = (startH * 60) + startM + (offsetHours * 60);
+            let d = new Date(); d.setHours(0,0,0,0); d.setMinutes(totalMinutes);
+            let timeString = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            div.innerHTML = `<div class="time-badge">${timeString}</div>`;
+        } else {
+            div.classList.add('no-time');
+        }
+        
+        div.innerHTML += `<div class="card-title">${title}</div><div class="card-desc">${desc}</div>`;
         container.appendChild(div);
     }
 </script>
