@@ -149,10 +149,10 @@
         tl.style.display = 'block';
 
         let total = current; 
-        let safeZone = cap - rate; // The target for intermediate refills (e.g. 30)
+        let safeZone = cap - rate; 
 
         // ============================================
-        // CYCLE 1: Reset (Start of Day -1)
+        // CYCLE 1: Today's Reset
         // ============================================
         let c1_time = 0;
         let c1_proj = total + rate;
@@ -160,7 +160,7 @@
         let c1_desc = "";
 
         if (c1_overflow) {
-            let toClear = c1_proj - safeZone; // Aim for safe zone to be super safe
+            let toClear = c1_proj - safeZone;
             c1_desc = `⚠️ <strong>OVERFLOW RISK!</strong><br>
             Incoming +${rate} will exceed cap.<br>
             <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
@@ -168,9 +168,9 @@
             total = safeZone; 
         } else {
             total = c1_proj;
-            c1_desc = `Start saving. Tasks refill (+${rate}). Total: <strong>${total}</strong>.`;
+            c1_desc = `Start saving today! Tasks refill (+${rate}). Total: <strong>${total}</strong>.`;
         }
-        addCard(tl, resetH, resetM, c1_time, "Reset (Day -1)", c1_desc, c1_overflow);
+        addCard(tl, resetH, resetM, c1_time, "Today's Reset", c1_desc, c1_overflow);
 
         // ============================================
         // CYCLE 2: Mid-Day Refill (+8 hours)
@@ -227,7 +227,7 @@
         // EVENT START (+24h)
         // ============================================
         addCard(tl, resetH, resetM, 24, "EVENT START", 
-            `Server reset! Unleash everything.`, 
+            `Tomorrow at reset! Unleash everything.`, 
             false);
     }
 
