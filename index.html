@@ -7,7 +7,7 @@
     <style>
         :root { 
             --accent: #ff3366; 
-            --panel-bg: rgba(20, 20, 20, 0.9); 
+            --panel-bg: rgba(20, 20, 20, 0.95); 
             --text: #ffffff; 
         }
         
@@ -21,36 +21,21 @@
         body { 
             font-family: 'Segoe UI', Roboto, sans-serif; 
             color: var(--text);
-            background-color: #000; /* Black fallback */
+            background-color: #000; 
 
             /* --- BACKGROUND LAYERS --- */
-            /* Layer 1 (Top): Laura */
-            /* Layer 2 (Bottom): Radar */
             background-image: url('laura.png'), url('radar.jpg');
-            
-            /* POSITIONING */
-            /* Laura: Top Center */
-            /* Radar: Center Center */
             background-position: top center, center center;
-            
-            /* SIZING */
-            /* Laura: 280px wide (Smaller) */
-            /* Radar: Cover (Fills entire screen, cuts off edges if needed to fill) */
             background-size: 280px auto, cover;
-            
-            /* BEHAVIOR */
             background-repeat: no-repeat, no-repeat;
-            
-            /* Laura scrolls up with the page, Radar stays frozen (fixed) */
             background-attachment: scroll, fixed; 
         }
 
-        /* Dark overlay to ensure text readability on top of the radar */
         .overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
-            pointer-events: none; /* Lets you click through it */
+            background: rgba(0, 0, 0, 0.5);
+            pointer-events: none;
             z-index: -1;
         }
 
@@ -63,8 +48,6 @@
             border-radius: 12px; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.8); 
             border: 1px solid #444;
-            
-            /* Pushes the box down to clear Laura's image */
             margin: 280px auto 50px auto; 
         }
         
@@ -132,7 +115,7 @@
 
         <div>
             <label>Cap</label>
-            <input type="number" id="cap" value="35">
+            <input type="number" id="cap" value="38">
         </div>
         <div>
             <label>Current</label>
@@ -166,27 +149,86 @@
         tl.style.display = 'block';
 
         let total = current; 
-        
-        // Cycle 1
-        total += rate;
-        addCard(tl, resetH, resetM, 0, "Reset (Day -1)", `Start saving. Tasks refill. Total: <strong>${total}</strong>.`, false);
+        let safeZone = cap - rate; // The target for intermediate refills (e.g. 30)
 
-        // Cycle 2
-        total += rate;
-        addCard(tl, resetH, resetM, 8, "Mid-Day Refill", `Second batch. Total: <strong>${total}</strong>. Do not claim (Red Dots).`, false);
+        // ============================================
+        // CYCLE 1: Reset (Start of Day -1)
+        // ============================================
+        let c1_time = 0;
+        let c1_proj = total + rate;
+        let c1_overflow = c1_proj > cap;
+        let c1_desc = "";
 
-        // Cycle 3
-        total += rate;
-        let overflow = total - cap;
-        let isCritical = overflow > 0;
-        let desc = overflow > 0 ? `⚠️ <strong>OVERFLOW!</strong> Complete <strong>${overflow}</strong> tasks NOW to drop to ${cap - rate}.` : `Safe. You will reach <strong>${total}/${cap}</strong>.`;
-        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", desc, isCritical);
+        if (c1_overflow) {
+            let toClear = c1_proj - safeZone; // Aim for safe zone to be super safe
+            c1_desc = `⚠️ <strong>OVERFLOW RISK!</strong><br>
+            Incoming +${rate} will exceed cap.<br>
+            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
+            This drops you to the safe zone (${safeZone}).`;
+            total = safeZone; 
+        } else {
+            total = c1_proj;
+            c1_desc = `Start saving. Tasks refill (+${rate}). Total: <strong>${total}</strong>.`;
+        }
+        addCard(tl, resetH, resetM, c1_time, "Reset (Day -1)", c1_desc, c1_overflow);
 
-        // Laura
-        addCard(tl, resetH, resetM, 23.83, "Activate Hero Skill", `Use Laura now! Pushes you to ${Math.min(total, cap) + laura}.`, true);
+        // ============================================
+        // CYCLE 2: Mid-Day Refill (+8 hours)
+        // ============================================
+        let c2_time = 8;
+        let c2_proj = total + rate;
+        let c2_overflow = c2_proj > safeZone; 
+        let c2_desc = "";
 
-        // Event
-        addCard(tl, resetH, resetM, 24, "EVENT START", `Server reset! Go!`, false);
+        if (c2_overflow) {
+            let toClear = c2_proj - safeZone;
+            c2_desc = `⚠️ <strong>PREPARE FOR FINAL STACK!</strong><br>
+            If you do nothing, you reach ${c2_proj}. This is too high.<br>
+            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
+            This ensures you land at <strong>${safeZone}</strong>, leaving exactly enough room for the final refill.`;
+            total = safeZone; 
+        } else {
+            total = c2_proj;
+            c2_desc = `Second batch (+${rate}). Total: <strong>${total}</strong>. Do not claim (Red Dots).`;
+        }
+        addCard(tl, resetH, resetM, c2_time, "Mid-Day Refill", c2_desc, c2_overflow);
+
+        // ============================================
+        // CYCLE 3: Last Refill (+16 hours)
+        // ============================================
+        let c3_time = 16;
+        let c3_proj = total + rate;
+        let c3_overflow = c3_proj > cap;
+        let c3_desc = "";
+
+        if (c3_overflow) {
+            let toClear = c3_proj - cap;
+            c3_desc = `⚠️ <strong>FINAL TOP-OFF!</strong><br>
+            Incoming +${rate} will overflow.<br>
+            <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks BEFORE this time.<br>
+            You will hit <strong>${cap}/${cap}</strong> perfectly.`;
+            total = cap;
+        } else {
+            total = c3_proj;
+            c3_desc = `Last refill! You land perfectly at <strong>${total}/${cap}</strong>.`;
+        }
+        addCard(tl, resetH, resetM, c3_time, "Last Refill (Stop Point)", c3_desc, c3_overflow);
+
+        // ============================================
+        // LAURA SKILL (+16h 05m)
+        // ============================================
+        let lauraTotal = total + laura;
+        addCard(tl, resetH, resetM, c3_time + 0.083, "Activate Hero Skill", 
+            `Refill Complete! Use Laura NOW.<br>
+            Since you are full (${total}), this pushes you OVER the cap to <strong>${lauraTotal}</strong>.`, 
+            true);
+
+        // ============================================
+        // EVENT START (+24h)
+        // ============================================
+        addCard(tl, resetH, resetM, 24, "EVENT START", 
+            `Server reset! Unleash everything.`, 
+            false);
     }
 
     function addCard(container, startH, startM, offsetHours, title, desc, critical) {
