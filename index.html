@@ -96,7 +96,6 @@
         .card-desc { color: #aaa; font-size: 0.85rem; line-height: 1.4; }
         .card-desc strong { color: #fff; }
         .critical .card-title { color: #ff4444; }
-        /* Style for time-less warning cards */
         .no-time .time-badge { display: none; }
     </style>
 </head>
@@ -152,75 +151,67 @@
         let total = current; 
         let safeZone = cap - rate; 
 
-        // ============================================
         // CYCLE 1: Today's Reset
-        // ============================================
         let c1_proj = total + rate;
         if (c1_proj > cap) {
             let toClear = c1_proj - safeZone;
             addCard(tl, null, null, null, "CAP ALERT!", 
-                `⚠️ <strong>OVERFLOW RISK!</strong><br>
-                Incoming +${rate} will exceed cap.<br>
-                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
-                This drops you to the safe zone (${safeZone}).`, true);
+                `⚠️ <strong>OVERFLOW RISK!</strong><br>Incoming +${rate} will exceed cap.<br><strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>This drops you to the safe zone (${safeZone}).`, true);
             total = safeZone;
         } else {
             total = c1_proj;
         }
         addCard(tl, resetH, resetM, 0, "Today's Reset", `Tasks refill (+${rate}). Current count: <strong>${total}</strong>.`);
 
-        // ============================================
-        // CYCLE 2: Mid-Day Refill (+8 hours)
-        // ============================================
+        // CYCLE 2: Mid-Day Refill
         let c2_proj = total + rate;
         if (c2_proj > safeZone) {
             let toClear = c2_proj - safeZone;
             addCard(tl, null, null, null, "CAP ALERT!", 
-                `⚠️ <strong>PREPARE FOR FINAL STACK!</strong><br>
-                If you do nothing, you reach ${c2_proj}. This is too high.<br>
-                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
-                This ensures you land at <strong>${safeZone}</strong>, leaving room for the final refill.`, true);
+                `⚠️ <strong>PREPARE FOR FINAL STACK!</strong><br>If you do nothing, you reach ${c2_proj}. This is too high.<br><strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>This ensures you land at <strong>${safeZone}</strong>, leaving room for the final refill.`, true);
             total = safeZone;
         } else {
             total = c2_proj;
         }
         addCard(tl, resetH, resetM, 8, "Mid-Day Refill", `Second refill (+${rate}). Current count: <strong>${total}</strong>.`);
 
-        // ============================================
-        // CYCLE 3: Last Refill (+16 hours)
-        // ============================================
+        // CYCLE 3: Last Refill
         let c3_proj = total + rate;
+        let c3_desc = "";
         if (c3_proj > cap) {
             let toClear = c3_proj - cap;
             addCard(tl, null, null, null, "CAP ALERT!", 
-                `⚠️ <strong>FINAL TOP-OFF!</strong><br>
-                Incoming +${rate} will overflow.<br>
-                <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
-                You will hit <strong>${cap}/${cap}</strong> perfectly.`, true);
+                `⚠️ <strong>FINAL TOP-OFF!</strong><br>Incoming +${rate} will overflow.<br><strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>You will hit <strong>${cap}/${cap}</strong> perfectly.`, true);
             total = cap;
+            c3_desc = `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`;
         } else {
             total = c3_proj;
+            // Only use "perfectly" if landing exactly on cap
+            if (total === cap) {
+                c3_desc = `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`;
+            } else {
+                c3_desc = `Last refill (+${rate})! Current count: <strong>${total}/${cap}</strong>.`;
+            }
         }
-        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`);
+        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", c3_desc);
 
-        // ============================================
-        // LAURA SKILL (+19:04 local equivalent)
-        // ============================================
+        // LAURA SKILL - Moved to 19:05 (approx 16.083 hours after reset)
         let lauraTotal = total + laura;
-        addCard(tl, resetH, resetM, 16.066, "Activate Hero Skill", 
-            `Refill Complete! Use Laura NOW.<br>
-            This pushes you OVER the cap to <strong>${lauraTotal}</strong>.`, true);
+        let lauraDesc = `Refill Complete! Use Laura NOW.<br>`;
+        if (lauraTotal > cap) {
+            lauraDesc += `This pushes you OVER the cap to <strong>${lauraTotal}</strong>.`;
+        } else {
+            lauraDesc += `Your new total is <strong>${lauraTotal}</strong>.`;
+        }
+        addCard(tl, resetH, resetM, 16.083, "Activate Hero Skill", lauraDesc, true);
 
-        // ============================================
-        // EVENT START (+24h)
-        // ============================================
+        // EVENT START
         addCard(tl, resetH, resetM, 24, "EVENT START", `Tomorrow at reset! Unleash everything.`);
     }
 
     function addCard(container, startH, startM, offsetHours, title, desc, critical = false) {
         let div = document.createElement('div');
         div.className = `event-card ${critical ? 'critical' : 'active'}`;
-        
         if (startH !== null) {
             let totalMinutes = (startH * 60) + startM + (offsetHours * 60);
             let d = new Date(); d.setHours(0,0,0,0); d.setMinutes(totalMinutes);
@@ -229,7 +220,6 @@
         } else {
             div.classList.add('no-time');
         }
-        
         div.innerHTML += `<div class="card-title">${title}</div><div class="card-desc">${desc}</div>`;
         container.appendChild(div);
     }
