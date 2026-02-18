@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Stack Calculator</title>
+    <style>
+        :root { 
+            --accent: #ff3366; 
+            --panel-bg: rgba(20, 20, 20, 0.9); 
+            --text: #ffffff; 
+        }
+        
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            color: var(--text);
+            background-color: #000; /* Black fallback */
+
+            /* --- BACKGROUND LAYERS --- */
+            /* Layer 1 (Top): Laura */
+            /* Layer 2 (Bottom): Radar */
+            background-image: url('laura.png'), url('radar.jpg');
+            
+            /* POSITIONING */
+            /* Laura: Top Center */
+            /* Radar: Center Center */
+            background-position: top center, center center;
+            
+            /* SIZING */
+            /* Laura: 280px wide (Smaller) */
+            /* Radar: Cover (Fills entire screen, cuts off edges if needed to fill) */
+            background-size: 280px auto, cover;
+            
+            /* BEHAVIOR */
+            background-repeat: no-repeat, no-repeat;
+            
+            /* Laura scrolls up with the page, Radar stays frozen (fixed) */
+            background-attachment: scroll, fixed; 
+        }
+
+        /* Dark overlay to ensure text readability on top of the radar */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+            pointer-events: none; /* Lets you click through it */
+            z-index: -1;
+        }
+
+        .container { 
+            width: 90%; 
+            max-width: 500px; 
+            background: var(--panel-bg);
+            backdrop-filter: blur(5px);
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8); 
+            border: 1px solid #444;
+            
+            /* Pushes the box down to clear Laura's image */
+            margin: 280px auto 50px auto; 
+        }
+        
+        h1 { 
+            color: var(--accent); 
+            text-align: center; 
+            font-size: 1.5rem; 
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+            margin-bottom: 20px;
+            margin-top: 0;
+            text-shadow: 0 0 15px rgba(255, 51, 102, 0.5);
+        }
+        
+        .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .full-width { grid-column: span 2; }
+        
+        label { display: block; font-size: 0.8rem; color: #ccc; margin-bottom: 5px; font-weight: 600; }
+        input { 
+            width: 100%; padding: 10px; background: rgba(0,0,0,0.5); 
+            border: 1px solid #444; color: white; border-radius: 6px; box-sizing: border-box; 
+        }
+        input:focus { border-color: var(--accent); outline: none; }
+        small { color: #888; font-size: 0.7rem; margin-top: 3px; display: block; }
+
+        button { 
+            width: 100%; padding: 14px; 
+            background: linear-gradient(45deg, var(--accent), #b3003b); 
+            color: white; font-weight: bold; border: none; border-radius: 6px; 
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 5px 20px rgba(255, 51, 102, 0.3);
+            transition: transform 0.1s;
+        }
+        button:hover { transform: scale(1.02); }
+
+        .timeline { margin-top: 25px; border-left: 2px solid #444; padding-left: 20px; }
+        .event-card { position: relative; margin-bottom: 20px; }
+        .event-card::before { 
+            content: ''; position: absolute; left: -27px; top: 5px; width: 10px; height: 10px; 
+            background: #222; border-radius: 50%; border: 2px solid #555; 
+        }
+        .event-card.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .event-card.critical::before { background: #ff4444; border-color: #ff4444; box-shadow: 0 0 10px #ff4444; }
+
+        .time-badge { font-weight: bold; color: var(--accent); font-size: 0.85rem; margin-bottom: 4px; }
+        .card-title { font-weight: bold; color: white; margin-bottom: 2px; font-size: 1rem;}
+        .card-desc { color: #aaa; font-size: 0.85rem; line-height: 1.4; }
+        .card-desc strong { color: #fff; }
+        .critical .card-title { color: #ff4444; }
+    </style>
+</head>
+<body>
+
+<div class="overlay"></div>
+
+<div class="container">
+    <h1>Radar Calculator</h1>
+    
+    <div class="input-grid">
+        <div class="full-width">
+            <label>Reset Time (Local)</label>
+            <input type="time" id="resetTime" value="00:00">
+            <small>When your daily missions reset.</small>
+        </div>
+
+        <div>
+            <label>Cap</label>
+            <input type="number" id="cap" value="35">
+        </div>
+        <div>
+            <label>Current</label>
+            <input type="number" id="current" value="0">
+        </div>
+        <div>
+            <label>Refill Rate</label>
+            <input type="number" id="rate" value="8">
+        </div>
+        <div>
+            <label>Hero Skill (+)</label>
+            <input type="number" id="laura" value="10">
+        </div>
+    </div>
+
+    <button onclick="calculateLocalTimeline()">Generate Plan</button>
+    <div id="timeline" class="timeline" style="display:none;"></div>
+</div>
+
+<script>
+    function calculateLocalTimeline() {
+        const resetTimeInput = document.getElementById('resetTime').value;
+        const cap = parseInt(document.getElementById('cap').value);
+        const current = parseInt(document.getElementById('current').value);
+        const rate = parseInt(document.getElementById('rate').value);
+        const laura = parseInt(document.getElementById('laura').value);
+
+        let [resetH, resetM] = resetTimeInput.split(':').map(Number);
+        const tl = document.getElementById('timeline');
+        tl.innerHTML = '';
+        tl.style.display = 'block';
+
+        let total = current; 
+        
+        // Cycle 1
+        total += rate;
+        addCard(tl, resetH, resetM, 0, "Reset (Day -1)", `Start saving. Tasks refill. Total: <strong>${total}</strong>.`, false);
+
+        // Cycle 2
+        total += rate;
+        addCard(tl, resetH, resetM, 8, "Mid-Day Refill", `Second batch. Total: <strong>${total}</strong>. Do not claim (Red Dots).`, false);
+
+        // Cycle 3
+        total += rate;
+        let overflow = total - cap;
+        let isCritical = overflow > 0;
+        let desc = overflow > 0 ? `⚠️ <strong>OVERFLOW!</strong> Complete <strong>${overflow}</strong> tasks NOW to drop to ${cap - rate}.` : `Safe. You will reach <strong>${total}/${cap}</strong>.`;
+        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", desc, isCritical);
+
+        // Laura
+        addCard(tl, resetH, resetM, 23.83, "Activate Hero Skill", `Use Laura now! Pushes you to ${Math.min(total, cap) + laura}.`, true);
+
+        // Event
+        addCard(tl, resetH, resetM, 24, "EVENT START", `Server reset! Go!`, false);
+    }
+
+    function addCard(container, startH, startM, offsetHours, title, desc, critical) {
+        let totalMinutes = (startH * 60) + startM + (offsetHours * 60);
+        let d = new Date(); d.setHours(0,0,0,0); d.setMinutes(totalMinutes);
+        let timeString = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        let div = document.createElement('div');
+        div.className = `event-card ${critical ? 'critical' : 'active'}`;
+        div.innerHTML = `<div class="time-badge">${timeString}</div><div class="card-title">${title}</div><div class="card-desc">${desc}</div>`;
+        container.appendChild(div);
+    }
+</script>
+
+</body>
+</html>
