@@ -190,8 +190,6 @@
         // CYCLE 3: Last Refill (+16 hours)
         // ============================================
         let c3_proj = total + rate;
-        let c3_desc = "";
-        
         if (c3_proj > cap) {
             let toClear = c3_proj - cap;
             addCard(tl, null, null, null, "CAP ALERT!", 
@@ -200,36 +198,42 @@
                 <strong>ACTION:</strong> Clear <strong>${toClear}</strong> tasks NOW.<br>
                 You will hit <strong>${cap}/${cap}</strong> perfectly.`, true);
             total = cap;
-            c3_desc = `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`;
         } else {
             total = c3_proj;
-            // Removed "Perfectly" if not at cap
-            c3_desc = `Last refill (+${rate})! Current count: <strong>${total}/${cap}</strong>.`;
         }
-        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", c3_desc);
+        addCard(tl, resetH, resetM, 16, "Last Refill (Stop Point)", `Last refill (+${rate})! You land perfectly at <strong>${total}/${cap}</strong>.`);
 
         // ============================================
         // LAURA SKILL (+19:04 local equivalent)
         // ============================================
         let lauraTotal = total + laura;
-        let lauraDesc = `Refill Complete! Use Laura NOW.<br>`;
-        
-        // Only say "pushes you OVER" if it actually exceeds the cap
-        if (lauraTotal > cap) {
-            lauraDesc += `This pushes you OVER the cap to <strong>${lauraTotal}</strong>.`;
-        } else {
-            lauraDesc += `Your new total is <strong>${lauraTotal}</strong>.`;
-        }
-        
-        addCard(tl, resetH, resetM, 16.066, "Activate Hero Skill", lauraDesc, true);
+        addCard(tl, resetH, resetM, 16.066, "Activate Hero Skill", 
+            `Refill Complete! Use Laura NOW.<br>
+            This pushes you OVER the cap to <strong>${lauraTotal}</strong>.`, true);
 
         // ============================================
         // EVENT START (+24h)
         // ============================================
         addCard(tl, resetH, resetM, 24, "EVENT START", `Tomorrow at reset! Unleash everything.`);
     }
+
+    function addCard(container, startH, startM, offsetHours, title, desc, critical = false) {
+        let div = document.createElement('div');
+        div.className = `event-card ${critical ? 'critical' : 'active'}`;
+        
+        if (startH !== null) {
+            let totalMinutes = (startH * 60) + startM + (offsetHours * 60);
+            let d = new Date(); d.setHours(0,0,0,0); d.setMinutes(totalMinutes);
+            let timeString = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            div.innerHTML = `<div class="time-badge">${timeString}</div>`;
+        } else {
+            div.classList.add('no-time');
+        }
+        
+        div.innerHTML += `<div class="card-title">${title}</div><div class="card-desc">${desc}</div>`;
+        container.appendChild(div);
+    }
 </script>
 
 </body>
 </html>
-
