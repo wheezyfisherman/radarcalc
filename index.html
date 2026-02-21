@@ -123,13 +123,15 @@
             background: #222; border-radius: 50%; border: 2px solid #555; 
         }
         
+        /* --- EVENT COLORS --- */
         .event-card.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px var(--accent); }
         
         .event-card.critical::before { background: #ff4444; border-color: #ff4444; box-shadow: 0 0 10px #ff4444; }
         .critical .card-title { color: #ff4444; }
         
-        .event-card.info::before { background: #00ffcc; border-color: #00ffcc; box-shadow: 0 0 10px #00ffcc; }
-        .info .time-badge { color: #00ffcc; }
+        .event-card.safe::before { background: #33ff77; border-color: #33ff77; box-shadow: 0 0 10px #33ff77; }
+        .safe .time-badge { color: #33ff77; }
+        .safe .card-title { color: #33ff77; }
         
         .event-card.start-saving::before { background: #ffcc00; border-color: #ffcc00; box-shadow: 0 0 10px #ffcc00; }
         .start-saving .time-badge { color: #ffcc00; }
@@ -179,11 +181,11 @@
 </div>
 
 <script>
-    const APO_UTC_HOUR = 2; // 00:00 Apocalypse = 02:00 UTC
+    const APO_UTC_HOUR = 2; 
 
     function calculateGlobalTimeline() {
         const cap = parseInt(document.getElementById('cap').value);
-        const current = parseInt(document.getElementById('current').value);
+        let current = parseInt(document.getElementById('current').value);
         const rate = parseInt(document.getElementById('rate').value);
         const laura = parseInt(document.getElementById('laura').value);
         let lauraUsed = document.getElementById('lauraUsed').checked;
@@ -195,7 +197,11 @@
         const formatTime = (d) => d.toLocaleTimeString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'});
         let now = new Date();
         
-        // 1. Find Next Event (Friday or Monday 02:00 UTC)
+        if (current > cap) {
+            addCard(tl, "RIGHT NOW", "OVERFLOW DETECTED", `You are currently over your cap. Clear tasks down to at least ${cap}.`, 'critical');
+            current = cap;
+        }
+
         let eventStart = new Date(now);
         eventStart.setUTCHours(APO_UTC_HOUR, 0, 0, 0);
         if (eventStart <= now) eventStart.setUTCDate(eventStart.getUTCDate() + 1);
@@ -203,44 +209,13 @@
             eventStart.setUTCDate(eventStart.getUTCDate() + 1);
         }
 
-        // 2. Map out ALL future Refills
-        let allRefills = [];
+        let events = [];
         let r = new Date(eventStart.getTime() - 8 * 60 * 60 * 1000); 
         while (r > now) {
-            allRefills.push(new Date(r));
+            events.push({time: new Date(r), type: 'refill'});
             r = new Date(r.getTime() - 8 * 60 * 60 * 1000);
         }
-        allRefills.reverse();
 
-        // 3. SMART CALCULATION: Set Start Threshold
-        let refillsToFillFromZero = Math.ceil(cap / rate);
-        let isRelaxPhase = false;
-        let startSavingTime = new Date(0);
-        let total = current;
-
-        if (allRefills.length > refillsToFillFromZero) {
-            isRelaxPhase = true;
-            let startIndex = allRefills.length - refillsToFillFromZero;
-            startSavingTime = allRefills[startIndex];
-            total = 0; 
-        } else {
-            startSavingTime = new Date(0);
-            total = current;
-        }
-
-        let events = [];
-        
-        allRefills.forEach(ref => {
-            if (ref < startSavingTime) {
-                events.push({time: ref, type: 'free_refill'});
-            } else if (ref.getTime() === startSavingTime.getTime()) {
-                events.push({time: ref, type: 'start_saving'});
-            } else {
-                events.push({time: ref, type: 'refill'});
-            }
-        });
-
-        // 4. Schedule Optimal Laura
         let optimalLauraTime = new Date(eventStart.getTime() - 8 * 60 * 60 * 1000 + 5 * 60 * 1000);
         if (optimalLauraTime > now) {
             events.push({ time: optimalLauraTime, type: 'optimal_laura' });
@@ -249,7 +224,6 @@
             lauraUsed = true; 
         }
 
-        // 5. Schedule Daily Lauras
         let finalGameDayStart = new Date(eventStart.getTime() - 24 * 60 * 60 * 1000);
         let nextReset = new Date(now);
         nextReset.setUTCHours(APO_UTC_HOUR, 0, 0, 0);
@@ -274,116 +248,113 @@
             currentDayReset = new Date(currentDayReset.getTime() + 24 * 60 * 60 * 1000);
         }
 
-        // 6. MASTER CLEAR CALCULATOR (Look-Ahead Math)
+        events.sort((a, b) => a.time - b.time);
+
+        // --- THE "ACTION NOW" EXCESS LOGIC ---
         let lastRefillTime = new Date(eventStart.getTime() - 8 * 60 * 60 * 1000);
         let totalGains = 0;
         
         events.forEach(ev => {
-            if (ev.time >= startSavingTime && ev.time < lastRefillTime) {
-                if (ev.type === 'refill' || ev.type === 'start_saving') totalGains += rate;
+            if (ev.time <= lastRefillTime) {
+                if (ev.type === 'refill') totalGains += rate;
                 if (ev.type.includes('daily_laura')) totalGains += laura;
             }
         });
 
-        let safeZone = cap - rate;
-        let startingStack = isRelaxPhase ? 0 : current;
-        let excess = (startingStack + totalGains) - safeZone;
-        let tasksToClear = 0;
+        let excess = Math.max(0, (current + totalGains) - cap);
+        let stack = current;
 
+        // Immediately burn off excess from the user's CURRENT stack first
         if (excess > 0) {
-            tasksToClear = excess;
-            // Inject the single warning right at the start of the saving phase
-            events.push({ 
-                time: new Date(startSavingTime.getTime() + 1000), 
-                type: 'excess_warning', 
-                amount: excess,
-                lastRefillStr: formatTime(lastRefillTime)
-            });
-        }
-
-        events.sort((a, b) => a.time - b.time);
-        events.push({ time: eventStart, type: 'event' });
-
-        // UI: Timeline Header
-        if (isRelaxPhase) {
-            addCard(tl, "RIGHT NOW", "Play Normally", `You have plenty of time. Keep playing normally until the designated start point.<br><strong>ACTION:</strong> Clear your radar to <strong>0</strong> before <strong>${formatTime(startSavingTime)}</strong>.`, 'info');
+            if (stack >= excess) {
+                let cleared = excess;
+                stack -= excess;
+                excess = 0;
+                addCard(tl, "RIGHT NOW", "Clear Current Tasks", `You have excess tasks saved up.<br><span style='color:#33ff77;font-weight:bold;'>ACTION: Claim ${cleared} of your current tasks RIGHT NOW.</span><br>Your starting stack drops to <strong>${stack}</strong>.`, 'safe');
+            } else {
+                let cleared = stack;
+                excess -= stack;
+                stack = 0;
+                if (cleared > 0) {
+                    addCard(tl, "RIGHT NOW", "Clear Current Tasks", `You have too many tasks coming in.<br><span style='color:#33ff77;font-weight:bold;'>ACTION: Claim ALL ${cleared} of your current tasks RIGHT NOW.</span><br>Your starting stack drops to <strong>0</strong>.`, 'safe');
+                } else {
+                    addCard(tl, "RIGHT NOW", "Timeline Started", `Starting stack: <strong>0</strong>.`, 'active');
+                }
+            }
         } else {
-            addCard(tl, "RIGHT NOW", "Timeline Started", `You are in the saving phase. Start saving from this exact minute.<br>Starting stack: <strong>${total}</strong>.`, 'active');
+            addCard(tl, "RIGHT NOW", "Timeline Started", `Start saving from this exact minute. Starting stack: <strong>${stack}</strong>.`, 'active');
         }
 
-        // 7. Generate Timeline Output
+        // Generate Timeline Output
         for (let i = 0; i < events.length; i++) {
             let ev = events[i];
             let timeStr = formatTime(ev.time);
 
-            if (ev.type === 'excess_warning') {
-                addCard(tl, "TASK CLEAR PLAN", "⚠️ OVERFLOW PREPARATION", `To land perfectly on the final refill, clear a total of <strong>${ev.amount}</strong> tasks before ${ev.lastRefillStr}.<br><small><em>(The timeline below assumes you do this to stay in the safe zone).</em></small>`, 'critical');
-            }
-            else if (ev.type === 'free_refill') {
-                addCard(tl, timeStr, "Safe to Claim", `Tasks refill (+${rate}). <strong>ACTION:</strong> Claim these for free points!`, 'info');
-            }
-            else if (ev.type === 'refill' || ev.type === 'start_saving') {
+            if (ev.type === 'refill') {
                 let isLast = (ev.time.getTime() === lastRefillTime.getTime());
-                total += rate;
-                
-                if (isLast) {
-                    if (total > cap) {
-                        let toClear = total - cap;
-                        addCard(tl, "CAP ALERT!", `⚠️ FINAL TOP-OFF RISK`, `Clear <strong>${toClear}</strong> tasks NOW.`, 'critical');
-                        total = cap;
-                    }
-                    let desc = (total === cap) ? `Last refill (+${rate}) hits! You land perfectly at <strong>${total}/${cap}</strong>.` : `Last refill (+${rate})! Current count: <strong>${total}/${cap}</strong>.`;
-                    addCard(tl, timeStr, "Last Refill (Stop Point)", desc);
-                } else {
-                    // Siphon math quietly keeps the UI clean assuming they followed the master clear instruction
-                    if (total > safeZone && tasksToClear > 0) {
-                        let siphon = Math.min(total - safeZone, tasksToClear);
-                        total -= siphon;
-                        tasksToClear -= siphon;
-                    }
-                    
-                    if (ev.type === 'start_saving') {
-                        addCard(tl, timeStr, "🛑 START SAVING NOW", `The final push begins! Tasks refill (+${rate}). <strong>Stop claiming tasks.</strong><br>Current count: <strong>${total}</strong>.`, 'start-saving');
-                    } else {
-                        addCard(tl, timeStr, "Scheduled Refill", `Tasks refill (+${rate}). Current count: <strong>${total}</strong>.`);
-                    }
+                let title = isLast ? "Last Refill (Stop Point)" : "Scheduled Refill";
+
+                // If there's STILL excess (because the current stack was 0 but incoming is huge)
+                if (excess >= rate) {
+                    excess -= rate;
+                    let desc = `Tasks refill (+${rate}). Still burning off excess.<br><span style='color:#33ff77;font-weight:bold;'>ACTION: Claim all ${rate} for free points!</span>`;
+                    if (isLast) desc += `<br>You land perfectly at <strong>${stack}/${cap}</strong>.`;
+                    addCard(tl, timeStr, isLast ? "Last Refill (Safe to Claim)" : "Safe to Claim", desc, 'safe');
+                } 
+                else if (excess > 0) {
+                    let saved = rate - excess;
+                    let claimed = excess;
+                    stack += saved;
+                    excess = 0; 
+                    let desc = `Tasks refill (+${rate}).<br><span style='color:#ffcc00;font-weight:bold;'>ACTION: Claim ${claimed} tasks, and SAVE the remaining ${saved}.</span>`;
+                    if (isLast) desc += `<br>You land perfectly at <strong>${stack}/${cap}</strong>.`;
+                    else desc += `<br>Current count: <strong>${stack}</strong>.`;
+                    addCard(tl, timeStr, isLast ? title : "Start Saving (Partial Claim)", desc, 'start-saving');
+                } 
+                else {
+                    stack += rate;
+                    let desc = isLast ? 
+                        (stack === cap ? `Last refill (+${rate}) hits! You land perfectly at <strong>${stack}/${cap}</strong>.` : `Last refill (+${rate})! Current count: <strong>${stack}/${cap}</strong>.`) : 
+                        `Tasks refill (+${rate}). <strong>Keep saving.</strong><br>Current count: <strong>${stack}</strong>.`;
+                    addCard(tl, timeStr, title, desc, 'active');
                 }
             } 
             else if (ev.type.includes('daily_laura')) {
                 let displayTime = ev.type === 'daily_laura_now' ? "RIGHT NOW" : timeStr;
                 
-                if (ev.time < startSavingTime) {
-                    addCard(tl, displayTime, "Daily Hero Skill", `Use Laura to grab free daily tasks and claim them. (Play normally).`, 'info');
-                } else {
-                    total += laura;
-                    // Siphon math applies here too
-                    if (total > safeZone && tasksToClear > 0) {
-                        let siphon = Math.min(total - safeZone, tasksToClear);
-                        total -= siphon;
-                        tasksToClear -= siphon;
-                    }
-                    addCard(tl, displayTime, "Daily Hero Skill", `Use Laura to grab your free daily tasks. Stack becomes <strong>${total}</strong>.`, 'active');
+                if (excess >= laura) {
+                    excess -= laura;
+                    addCard(tl, displayTime, "Daily Hero Skill", `Use Laura to grab daily tasks.<br><span style='color:#33ff77;font-weight:bold;'>ACTION: Claim all ${laura} for free points!</span>`, 'safe');
+                } 
+                else if (excess > 0) {
+                    let saved = laura - excess;
+                    let claimed = excess;
+                    stack += saved;
+                    excess = 0;
+                    addCard(tl, displayTime, "Daily Hero Skill / Start Saving", `Use Laura.<br><span style='color:#ffcc00;font-weight:bold;'>ACTION: Claim ${claimed} tasks, and SAVE the remaining ${saved}.</span><br>Current count: <strong>${stack}</strong>.`, 'start-saving');
+                } 
+                else {
+                    stack += laura;
+                    addCard(tl, displayTime, "Daily Hero Skill", `Use Laura to grab your free daily tasks. <strong>Keep saving.</strong><br>Current count: <strong>${stack}</strong>.`, 'active');
                 }
             }
             else if (ev.type.includes('optimal_laura')) {
-                let lauraTotal = total + laura;
-                total = lauraTotal; 
+                stack += laura; 
                 let title = (ev.type.includes('urgent')) ? "Activate Hero Skill (DO IT NOW)" : "Activate Hero Skill";
                 let desc = `Refill Complete! Use Laura NOW.<br>`;
-                desc += (total > cap) ? `This pushes you OVER the cap to <strong>${total}</strong>.` : `Your new total is <strong>${total}</strong>.`;
+                desc += (stack > cap) ? `This pushes you OVER the cap to <strong>${stack}</strong>.` : `Your new total is <strong>${stack}</strong>.`;
                 addCard(tl, timeStr, title, desc, 'critical');
             }
-            else if (ev.type === 'event') {
-                addCard(tl, timeStr, "EVENT START", `Server reset! <strong>CLAIM ALL YOUR TASKS NOW</strong> to maximize points!`, 'active');
-            }
         }
+        
+        addCard(tl, formatTime(eventStart), "EVENT START", `Server reset! <strong>CLAIM ALL YOUR TASKS NOW</strong> to maximize points!`, 'active');
     }
 
     function addCard(container, timeString, title, desc, styleClass = 'active') {
         let div = document.createElement('div');
         div.className = `event-card ${styleClass}`;
         
-        if (timeString === "CAP ALERT!" || timeString === "RIGHT NOW" || timeString === "TASK CLEAR PLAN") {
+        if (timeString === "RIGHT NOW") {
             div.classList.add('no-time');
         } else {
             div.innerHTML = `<div class="time-badge">${timeString}</div>`;
